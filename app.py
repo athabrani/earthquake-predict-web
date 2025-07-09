@@ -18,7 +18,7 @@ except Exception as e:
 
 # Muat kamus scalers
 try:
-    scalers_dict = joblib.load('scalers_lstm.pkl')
+    scalers_dict = joblib.load('scalers_new.pkl')
     print("Kamus scalers berhasil dimuat.")
 except Exception as e:
     print(f"Error memuat scalers: {e}")
@@ -26,7 +26,7 @@ except Exception as e:
 
 # Muat data historis yang telah diproses
 try:
-    df_historical = pd.read_csv('katalog_gempa_processed_for_flask.csv')
+    df_historical = pd.read_csv('katalaog_gempa_processed.csv')
     df_historical['tgl'] = pd.to_datetime(df_historical['tgl'])
     print("Data historis berhasil dimuat.")
 except Exception as e:
@@ -68,6 +68,15 @@ def predict_lstm():
         # 3. Gunakan scaler yang sesuai dari kamus
         scaler_prov = scalers_dict[provinsi_input]
         
+         # --------> LETAKKAN KODE PRINT DI SINI <--------
+        print("\n--- DEBUG: Data Sebelum Scaling ---")
+        print(f"Provinsi: {provinsi_input}")
+        print("Kolom Fitur:")
+        print(recent_data_features.columns)
+        print("5 Baris Teratas Fitur:")
+        print(recent_data_features.head())
+        print("------------------------------------\n")
+        # -----------------------------------------------
         # Penskalaan fitur
         # Scaler dari notebook di-fit pada (group[features]) yang memiliki kolom ['day', 'month', 'day_of_year', 'depth', 'mag']
         # Jadi, recent_data_features harus memiliki kolom yang sama dan urutan yang sama.
@@ -101,6 +110,57 @@ def predict_lstm():
     except Exception as e:
         print(f"Terjadi kesalahan: {e}") # Untuk debugging di server
         return jsonify({"error": f"Terjadi kesalahan internal: {e}"}), 500
+
+@app.route('/katalog', methods=['GET'])
+def get_katalog():
+    """
+    Endpoint untuk mendapatkan data historis gempa.
+    Menerima query parameter opsional:
+    - provinsi: Untuk filter berdasarkan provinsi.
+    - limit: Untuk membatasi jumlah data (default 50).
+    """
+    if df_historical is None:
+        return jsonify({"error": "Data historis tidak berhasil dimuat."}), 500
+
+    try:
+        # Ambil query parameters
+        provinsi_filter = request.args.get('provinsi', None)
+        limit_str = request.args.get('limit', '50') # Default limit 50
+
+        try:
+            limit = int(limit_str)
+        except ValueError:
+            return jsonify({"error": "Parameter 'limit' harus berupa angka."}), 400
+
+        # Buat salinan data untuk difilter
+        df_filtered = df_historical.copy()
+
+        # --------> TAMBAHKAN FILTER INI <--------
+        # Hapus baris yang tidak memiliki 'provinsi' atau 'lat' atau 'lon'
+        df_filtered = df_filtered.dropna(subset=['provinsi', 'lat', 'lon'])
+        df_filtered = df_filtered[df_filtered['provinsi'].str.strip() != '']
+        # ----------------------------------------
+
+        if provinsi_filter:
+            df_filtered = df_filtered[df_filtered['provinsi'].str.contains(provinsi_filter, case=False, na=False)]
+
+        df_result = df_filtered.sort_values('tgl', ascending=False).head(limit)
+
+        # Ubah kolom 'tgl' menjadi string agar aman untuk JSON
+        df_result['tgl'] = df_result['tgl'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Ganti NaN dengan None (null di JSON) agar aman
+        df_result = df_result.replace({np.nan: None})
+
+        # Konversi DataFrame ke format list of dictionaries (cocok untuk JSON)
+        records = df_result.to_dict(orient='records')
+
+        return jsonify(records)
+
+    except Exception as e:
+        print(f"Error di /katalog: {e}")
+        return jsonify({"error": f"Terjadi kesalahan internal: {e}"}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
