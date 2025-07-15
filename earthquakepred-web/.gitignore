@@ -31,7 +31,33 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
-.env*
+# Virtual env
+venv/
+env/
+*.pyc
+__pycache__/
+.ipynb_checkpoints/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Jupyter
+*.ipynb_checkpoints/
+
+# TensorFlow / ML
+*.h5
+*.pkl
+*.ckpt
+*.pb
+*.pyd
+*.dll
+
+# Git LFS
+*.zip
+*.tar.gz
+*.whl
+
 
 # vercel
 .vercel
